@@ -160,21 +160,33 @@ def get_photos_for_person(person_id: int) -> list:
     if person_id not in st.session_state.person_clusters:
         return []
 
+    # Sample images to exclude
+    excluded_images = ['sample.jpg.jpg', 'cld-sample-2.jpg.jpg', 'cld-sample-5.jpg.jpg']
+
     face_indices = st.session_state.person_clusters[person_id]
     photo_paths = set()
 
     for face_idx in face_indices:
         face_info = st.session_state.face_data['face_to_photo_map'][face_idx]
-        photo_paths.add(face_info['photo_path'])
+        photo_url = face_info['photo_path']
+        # Skip if it's a sample image
+        if not any(excluded in photo_url for excluded in excluded_images):
+            photo_paths.add(photo_url)
 
     return sorted(list(photo_paths))
 
 
 def get_all_photos() -> list:
     """Get all unique photo paths"""
+    # Sample images to exclude
+    excluded_images = ['sample.jpg.jpg', 'cld-sample-2.jpg.jpg', 'cld-sample-5.jpg.jpg']
+
     photo_paths = set()
     for face_info in st.session_state.face_data['face_to_photo_map']:
-        photo_paths.add(face_info['photo_path'])
+        photo_url = face_info['photo_path']
+        # Skip if it's a sample image
+        if not any(excluded in photo_url for excluded in excluded_images):
+            photo_paths.add(photo_url)
     return sorted(list(photo_paths))
 
 
