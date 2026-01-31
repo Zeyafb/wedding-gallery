@@ -153,27 +153,26 @@ def display_face_selector():
     """Display face thumbnail selector"""
     st.markdown("### Select a person to filter photos")
 
-    # Count valid people (exclude noise cluster -1)
-    valid_people = [pid for pid in st.session_state.person_clusters.keys() if pid >= 0]
-    num_people = len(valid_people)
+    # "Show All" button at the top
+    if st.button("🏠 Show All Photos", use_container_width=True, type="primary" if st.session_state.selected_person is None else "secondary"):
+        st.session_state.selected_person = None
+        st.rerun()
 
-    # "Show All" button
-    col_all, *cols = st.columns(num_people + 1)
+    st.markdown("---")
+    st.markdown("**Click a face to filter photos:**")
 
-    with col_all:
-        if st.button("🏠 Show All", use_container_width=True, type="primary" if st.session_state.selected_person is None else "secondary"):
-            st.session_state.selected_person = None
-            st.rerun()
+    # Get valid people (exclude noise cluster -1) and sort by face count
+    valid_people = [(pid, faces) for pid, faces in st.session_state.person_clusters.items() if pid >= 0]
 
-    # Face thumbnails
-    col_idx = 0
-    for person_id, face_indices in st.session_state.person_clusters.items():
-        # Skip noise cluster (-1)
-        if person_id == -1:
-            continue
+    # Display faces in a grid (8 columns per row)
+    cols_per_row = 8
 
-        with cols[col_idx]:
-            col_idx += 1
+    for row_start in range(0, len(valid_people), cols_per_row):
+        cols = st.columns(cols_per_row)
+        row_people = valid_people[row_start:row_start + cols_per_row]
+
+        for col_idx, (person_id, face_indices) in enumerate(row_people):
+            with cols[col_idx]:
             # Get first face of this person as representative
             first_face_idx = face_indices[0]
             face_info = st.session_state.face_data['face_to_photo_map'][first_face_idx]
@@ -191,21 +190,20 @@ def display_face_selector():
                 # Create a circular mask
                 face_thumb_np = np.array(face_thumb)
 
-                # Display image
+                # Display image with click button
                 st.image(
                     face_thumb_np,
-                    use_container_width=True,
-                    caption=f"{num_photos} photos"
+                    use_container_width=True
                 )
 
                 # Button to select this person
                 button_type = "primary" if st.session_state.selected_person == person_id else "secondary"
-                if st.button(f"Person {person_id + 1}", key=f"person_{person_id}", use_container_width=True, type=button_type):
+                if st.button(f"📷 {num_photos}", key=f"person_{person_id}", use_container_width=True, type=button_type, help=f"{num_photos} photos with this person"):
                     st.session_state.selected_person = person_id
                     st.rerun()
 
             except Exception as e:
-                st.error(f"Error loading face: {str(e)}")
+                st.error(f"Error: {str(e)[:50]}")
 
 
 def image_to_base64(image_path: str) -> str:
