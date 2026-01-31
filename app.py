@@ -41,12 +41,23 @@ def init_session_state():
         st.session_state.person_names = {}
     if 'search_query' not in st.session_state:
         st.session_state.search_query = ""
+    if 'photo_tags' not in st.session_state:
+        st.session_state.photo_tags = {}
 
 
 def load_person_names():
     """Load person names from JSON file"""
     try:
         with open('person_names.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+
+def load_photo_tags():
+    """Load photo tags from JSON file"""
+    try:
+        with open('photo_tags.json', 'r') as f:
             return json.load(f)
     except FileNotFoundError:
         return {}
@@ -136,6 +147,7 @@ def load_faces_from_cache():
                 st.session_state.cluster_labels
             )
             st.session_state.person_names = load_person_names()
+            st.session_state.photo_tags = load_photo_tags()
 
             # Filter out noise cluster (-1) from display
             if -1 in st.session_state.person_clusters:
@@ -157,37 +169,55 @@ def load_faces_from_cache():
 
 
 def get_photos_for_person(person_id: int) -> list:
-    """Get all unique photo paths for a specific person"""
-    if person_id not in st.session_state.person_clusters:
-        return []
+    """Get all unique photo paths for a specific person (detected faces + manual tags)"""
+    photo_paths = set()
 
     # Sample images to exclude
     excluded_images = ['sample.jpg.jpg', 'cld-sample-2.jpg.jpg', 'cld-sample-5.jpg.jpg']
 
-    face_indices = st.session_state.person_clusters[person_id]
-    photo_paths = set()
+    # Add photos from face detection
+    if person_id in st.session_state.person_clusters:
+        face_indices = st.session_state.person_clusters[person_id]
+        for face_idx in face_indices:
+            face_info = st.session_state.face_data['face_to_photo_map'][face_idx]
+            photo_url = face_info['photo_path']
+            # Skip if it's a sample image
+            if not any(excluded in photo_url for excluded in excluded_images):
+                photo_paths.add(photo_url)
 
-    for face_idx in face_indices:
-        face_info = st.session_state.face_data['face_to_photo_map'][face_idx]
-        photo_url = face_info['photo_path']
-        # Skip if it's a sample image
-        if not any(excluded in photo_url for excluded in excluded_images):
-            photo_paths.add(photo_url)
+    # Add manually tagged photos
+    person_name = get_person_name(person_id, st.session_state.person_names)
+    if person_name:
+        for photo_url, tag_names in st.session_state.photo_tags.items():
+            # Handle both old string format and new list format
+            if isinstance(tag_names, str):
+                tag_names = [tag_names]
+            if person_name in tag_names:
+                if not any(excluded in photo_url for excluded in excluded_images):
+                    photo_paths.add(photo_url)
 
     return sorted(list(photo_paths))
 
 
 def get_all_photos() -> list:
-    """Get all unique photo paths"""
+    """Get all unique photo paths (detected faces + manual tags)"""
     # Sample images to exclude
     excluded_images = ['sample.jpg.jpg', 'cld-sample-2.jpg.jpg', 'cld-sample-5.jpg.jpg']
 
     photo_paths = set()
+
+    # Add photos from face detection
     for face_info in st.session_state.face_data['face_to_photo_map']:
         photo_url = face_info['photo_path']
         # Skip if it's a sample image
         if not any(excluded in photo_url for excluded in excluded_images):
             photo_paths.add(photo_url)
+
+    # Add manually tagged photos
+    for photo_url in st.session_state.photo_tags.keys():
+        if not any(excluded in photo_url for excluded in excluded_images):
+            photo_paths.add(photo_url)
+
     return sorted(list(photo_paths))
 
 
