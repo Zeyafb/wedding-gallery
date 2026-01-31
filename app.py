@@ -76,7 +76,7 @@ def extract_face_thumbnail(image_path, face_location):
     top, right, bottom, left = face_location
 
     # Load image with PIL (works with URLs and local paths)
-    if image_path.startswith('http'):
+    if image_path.startswith(('http://', 'https://')):
         response = requests.get(image_path)
         image = Image.open(BytesIO(response.content))
     else:
