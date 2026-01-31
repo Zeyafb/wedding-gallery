@@ -8,9 +8,10 @@ from PIL import Image
 import base64
 from io import BytesIO
 import numpy as np
+import requests
 
-from face_processor import FaceProcessor
 from cache_manager import CacheManager
+from storage_manager import StorageManager
 import config
 
 # Page configuration
@@ -36,77 +37,93 @@ def init_session_state():
         st.session_state.lightbox_photo = None
 
 
-def load_or_process_faces(folder_path: str):
-    """Load faces from cache or process if needed"""
+def get_person_clusters(cluster_labels):
+    """
+    Organize faces by person (cluster)
+
+    Args:
+        cluster_labels: Array of cluster IDs for each face
+
+    Returns:
+        Dict mapping cluster_id -> list of face indices
+    """
+    person_clusters = {}
+
+    for face_idx, cluster_id in enumerate(cluster_labels):
+        if cluster_id not in person_clusters:
+            person_clusters[cluster_id] = []
+        person_clusters[cluster_id].append(face_idx)
+
+    # Sort by cluster size (most photos first)
+    person_clusters = dict(
+        sorted(person_clusters.items(), key=lambda x: len(x[1]), reverse=True)
+    )
+
+    return person_clusters
+
+
+def extract_face_thumbnail(image_path, face_location):
+    """
+    Extract face region from image and return as PIL Image
+
+    Args:
+        image_path: Path to the image file or URL
+        face_location: Tuple of (top, right, bottom, left) coordinates
+
+    Returns:
+        PIL Image of the cropped face
+    """
+    top, right, bottom, left = face_location
+
+    # Load image with PIL (works with URLs and local paths)
+    if image_path.startswith('http'):
+        response = requests.get(image_path)
+        image = Image.open(BytesIO(response.content))
+    else:
+        image = Image.open(image_path)
+
+    # Add some padding around the face
+    padding = 20
+    top = max(0, top - padding)
+    left = max(0, left - padding)
+    bottom = min(image.height, bottom + padding)
+    right = min(image.width, right + padding)
+
+    # Crop face
+    face_image = image.crop((left, top, right, bottom))
+
+    # Resize to thumbnail size
+    face_image.thumbnail((config.THUMBNAIL_SIZE, config.THUMBNAIL_SIZE), Image.Resampling.LANCZOS)
+
+    return face_image
+
+
+def load_faces_from_cache():
+    """Load pre-processed faces from cache"""
     cache_manager = CacheManager()
-    face_processor = FaceProcessor()
 
-    # Check if cache exists and is valid
-    if cache_manager.is_cache_valid(folder_path):
-        with st.spinner("Loading from cache..."):
-            cache_data = cache_manager.load_cache()
-            if cache_data:
-                st.session_state.face_data = cache_data
-                st.session_state.cluster_labels = np.array(cache_data['cluster_labels'])
-                st.session_state.person_clusters = face_processor.get_person_clusters(
-                    st.session_state.cluster_labels
-                )
-                st.success(f"Loaded {cache_data['total_faces']} faces from {cache_data['total_photos']} photos!")
-                return True
+    with st.spinner("Loading face data..."):
+        cache_data = cache_manager.load_cache()
+        if cache_data:
+            st.session_state.face_data = cache_data
+            st.session_state.cluster_labels = np.array(cache_data['cluster_labels'])
+            st.session_state.person_clusters = get_person_clusters(
+                st.session_state.cluster_labels
+            )
 
-    # Process faces with progress bar
-    st.info("Processing faces for the first time... This may take a few minutes.")
-    progress_bar = st.progress(0)
-    status_text = st.empty()
+            # Filter out noise cluster (-1) from display
+            if -1 in st.session_state.person_clusters:
+                noise_count = len(st.session_state.person_clusters[-1])
+                unique_people = len(st.session_state.person_clusters) - 1
+            else:
+                noise_count = 0
+                unique_people = len(st.session_state.person_clusters)
 
-    def progress_callback(current, total, filename):
-        progress = (current + 1) / total
-        progress_bar.progress(progress)
-        status_text.text(f"Processing {current + 1}/{total}: {filename}")
-
-    try:
-        # Load and detect faces
-        image_paths = face_processor.load_images(folder_path)
-        if len(image_paths) == 0:
-            st.error(f"No images found in {folder_path}")
+            st.success(f"✓ Loaded {cache_data['total_faces']} faces from {cache_data['total_photos']} photos ({unique_people} unique people)")
+            return True
+        else:
+            st.error("⚠️ Face cache not found. Please contact the administrator.")
             return False
-
-        face_data = face_processor.detect_faces(image_paths, progress_callback)
-
-        if face_data['total_faces'] == 0:
-            st.warning("No faces detected in any photos!")
-            return False
-
-        # Cluster faces
-        status_text.text("Clustering faces by person...")
-        cluster_labels = face_processor.cluster_faces(face_data['face_encodings'])
-
-        # Organize by person
-        person_clusters = face_processor.get_person_clusters(cluster_labels)
-
-        # Save to cache
-        cache_data = {
-            'face_encodings': face_data['face_encodings'],
-            'face_to_photo_map': face_data['face_to_photo_map'],
-            'cluster_labels': cluster_labels.tolist(),
-            'total_photos': face_data['total_photos'],
-            'total_faces': face_data['total_faces']
-        }
-        cache_manager.save_cache(cache_data)
-
-        # Store in session state
-        st.session_state.face_data = cache_data
-        st.session_state.cluster_labels = cluster_labels
-        st.session_state.person_clusters = person_clusters
-
-        progress_bar.empty()
-        status_text.empty()
-        st.success(f"Processed {face_data['total_faces']} faces from {face_data['total_photos']} photos!")
-        return True
-
-    except Exception as e:
-        st.error(f"Error processing faces: {str(e)}")
-        return False
 
 
 def get_photos_for_person(person_id: int) -> list:
@@ -136,8 +153,12 @@ def display_face_selector():
     """Display face thumbnail selector"""
     st.markdown("### Select a person to filter photos")
 
+    # Count valid people (exclude noise cluster -1)
+    valid_people = [pid for pid in st.session_state.person_clusters.keys() if pid >= 0]
+    num_people = len(valid_people)
+
     # "Show All" button
-    col_all, *cols = st.columns(len(st.session_state.person_clusters) + 1)
+    col_all, *cols = st.columns(num_people + 1)
 
     with col_all:
         if st.button("🏠 Show All", use_container_width=True, type="primary" if st.session_state.selected_person is None else "secondary"):
@@ -145,17 +166,21 @@ def display_face_selector():
             st.rerun()
 
     # Face thumbnails
-    face_processor = FaceProcessor()
+    col_idx = 0
+    for person_id, face_indices in st.session_state.person_clusters.items():
+        # Skip noise cluster (-1)
+        if person_id == -1:
+            continue
 
-    for idx, (person_id, face_indices) in enumerate(st.session_state.person_clusters.items()):
-        with cols[idx]:
+        with cols[col_idx]:
+            col_idx += 1
             # Get first face of this person as representative
             first_face_idx = face_indices[0]
             face_info = st.session_state.face_data['face_to_photo_map'][first_face_idx]
 
             # Extract face thumbnail
             try:
-                face_thumb = face_processor.extract_face_thumbnail(
+                face_thumb = extract_face_thumbnail(
                     face_info['photo_path'],
                     face_info['location']
                 )
@@ -315,39 +340,14 @@ def main():
     st.title("💒 Wedding Photo Gallery")
     st.markdown("---")
 
-    # Sidebar for settings
-    with st.sidebar:
-        st.header("Settings")
-
-        # Folder path input
-        folder_path = st.text_input(
-            "Photos Folder Path",
-            value=config.PHOTOS_FOLDER,
-            help="Enter the path to your wedding photos folder"
-        )
-
-        # Clear cache button
-        if st.button("🔄 Clear Cache & Reprocess", type="secondary"):
-            cache_manager = CacheManager()
-            cache_manager.clear_cache()
-            st.session_state.face_data = None
-            st.session_state.person_clusters = {}
-            st.session_state.cluster_labels = None
-            st.session_state.selected_person = None
-            st.success("Cache cleared! Refresh to reprocess.")
-            st.rerun()
-
-        st.markdown("---")
+    # Sidebar for settings (optional - can be hidden since we're using pre-processed cache)
+    # Removed folder path input since we're using Cloudinary URLs from cache
         st.caption(f"Face detection model: {config.FACE_DETECTION_MODEL}")
         st.caption(f"Matching tolerance: {config.TOLERANCE}")
 
-    # Load or process faces
+    # Load pre-processed faces from cache
     if st.session_state.face_data is None:
-        if os.path.exists(folder_path):
-            load_or_process_faces(folder_path)
-        else:
-            st.error(f"Folder not found: {folder_path}")
-            st.info("Please update the folder path in the sidebar or in config.py")
+        load_faces_from_cache()
             return
 
     # Show lightbox if photo is selected
