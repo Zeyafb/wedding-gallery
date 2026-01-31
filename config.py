@@ -18,7 +18,7 @@ PHOTOS_FOLDER = "wedding_photos"  # CHANGE THIS to your local wedding photos fol
 # CLOUDINARY STORAGE (RECOMMENDED for deployment - free 25GB)
 # -----------------------------------------------------------------------------
 # Sign up at https://cloudinary.com
-CLOUDINARY_CLOUD_NAME = "dwt17ikflb"  # Your Cloudinary cloud name
+CLOUDINARY_CLOUD_NAME = "dw17ikflb"  # Your Cloudinary cloud name (fixed typo)
 CLOUDINARY_FOLDER = "wedding-photos"  # Folder name in Cloudinary
 CLOUDINARY_URL_LIST_FILE = "cloudinary_urls.txt"  # URL list file
 
