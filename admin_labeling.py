@@ -162,12 +162,22 @@ def show_unused_photos():
             valid_names.append(name)
     valid_names = sorted(set(valid_names))
 
-    # Save button
-    if st.button("💾 Save Photo Tags", type="primary", use_container_width=True):
-        with open('photo_tags.json', 'w') as f:
-            json.dump(st.session_state.photo_tags, f, indent=2)
-        st.success(f"Saved {len(st.session_state.photo_tags)} photo tags!")
+    # Progress indicator
+    tagged_count = len(st.session_state.photo_tags)
+    st.markdown(f"**Progress: {tagged_count} of {len(unused_photos)} photos tagged**")
 
+    # Save button (large and prominent)
+    col_save1, col_save2 = st.columns([2, 1])
+    with col_save1:
+        if st.button("💾 SAVE ALL TAGS TO FILE", type="primary", use_container_width=True):
+            with open('photo_tags.json', 'w') as f:
+                json.dump(st.session_state.photo_tags, f, indent=2)
+            st.success(f"✓ Saved {len(st.session_state.photo_tags)} photo tags to photo_tags.json!")
+    with col_save2:
+        st.info("Click when done tagging")
+
+    st.markdown("---")
+    st.markdown("**Select names for each photo below. Changes save automatically to session, but you must click SAVE button above to persist to file.**")
     st.markdown("---")
 
     # Display in grid
@@ -205,13 +215,12 @@ def show_unused_photos():
                     # Update tags
                     if selected_names:
                         st.session_state.photo_tags[photo_url] = selected_names
+                        # Show success indicator
+                        st.success(f"✓ Tagged with: {', '.join(selected_names)}")
                     else:
                         if photo_url in st.session_state.photo_tags:
                             del st.session_state.photo_tags[photo_url]
-
-                    # Show count
-                    if selected_names:
-                        st.caption(f"Tagged: {', '.join(selected_names)}")
+                        st.info("No tags selected")
 
                     st.markdown("---")
 
