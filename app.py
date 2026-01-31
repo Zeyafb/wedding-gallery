@@ -62,40 +62,33 @@ def get_person_clusters(cluster_labels):
     return person_clusters
 
 
-def extract_face_thumbnail(image_path, face_location):
+def get_face_thumbnail_url(image_path, face_location):
     """
-    Extract face region from image and return as PIL Image
+    Get optimized face thumbnail URL using Cloudinary transformations
 
     Args:
-        image_path: Path to the image file or URL
+        image_path: Cloudinary URL or local path
         face_location: Tuple of (top, right, bottom, left) coordinates
 
     Returns:
-        PIL Image of the cropped face
+        URL string for cropped face thumbnail (or original path for local files)
     """
-    top, right, bottom, left = face_location
+    # For Cloudinary URLs, use transformation API for fast cropped thumbnails
+    if image_path.startswith('https://res.cloudinary.com/'):
+        # Use Cloudinary's automatic face crop
+        # This is much faster than downloading and cropping locally
+        base_url = image_path.split('/upload/')[0]
+        image_part = image_path.split('/upload/')[1]
 
-    # Load image with PIL (works with URLs and local paths)
-    if image_path.startswith(('http://', 'https://')):
-        response = requests.get(image_path)
-        image = Image.open(BytesIO(response.content))
+        # Add transformation: crop to face, thumbnail size
+        transformation = f"c_thumb,g_face,h_{config.THUMBNAIL_SIZE},w_{config.THUMBNAIL_SIZE}"
+        thumbnail_url = f"{base_url}/upload/{transformation}/{image_part}"
+
+        return thumbnail_url
     else:
-        image = Image.open(image_path)
-
-    # Add some padding around the face
-    padding = 20
-    top = max(0, top - padding)
-    left = max(0, left - padding)
-    bottom = min(image.height, bottom + padding)
-    right = min(image.width, right + padding)
-
-    # Crop face
-    face_image = image.crop((left, top, right, bottom))
-
-    # Resize to thumbnail size
-    face_image.thumbnail((config.THUMBNAIL_SIZE, config.THUMBNAIL_SIZE), Image.Resampling.LANCZOS)
-
-    return face_image
+        # For local files, return the original path
+        # Streamlit will handle it
+        return image_path
 
 
 def load_faces_from_cache():
@@ -177,9 +170,9 @@ def display_face_selector():
                 first_face_idx = face_indices[0]
                 face_info = st.session_state.face_data['face_to_photo_map'][first_face_idx]
 
-                # Extract face thumbnail
+                # Get face thumbnail URL (optimized for Cloudinary)
                 try:
-                    face_thumb = extract_face_thumbnail(
+                    face_thumb_url = get_face_thumbnail_url(
                         face_info['photo_path'],
                         face_info['location']
                     )
@@ -187,12 +180,9 @@ def display_face_selector():
                     # Display circular thumbnail with count
                     num_photos = len(get_photos_for_person(person_id))
 
-                    # Create a circular mask
-                    face_thumb_np = np.array(face_thumb)
-
-                    # Display image with click button
+                    # Display image with click button (Streamlit handles URLs natively)
                     st.image(
-                        face_thumb_np,
+                        face_thumb_url,
                         use_container_width=True
                     )
 
