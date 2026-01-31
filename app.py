@@ -56,7 +56,8 @@ def get_person_name(person_id, person_names):
     """Get display name for a person"""
     name = person_names.get(str(person_id), "")
     # Return None if name is skip/blank/etc
-    if not name or name.lower() in ['skip', 'sk', '???', 'this one is blank']:
+    skip_keywords = ['skip', 'sk', '???', 'this one is blank', 'no idea', 'need to review']
+    if not name or name.lower() in skip_keywords or any(keyword in name.lower() for keyword in skip_keywords):
         return None
     # Return name for valid entries
     return name
