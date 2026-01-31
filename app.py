@@ -341,25 +341,37 @@ def main():
 
     # Display face selector
     if st.session_state.face_data and len(st.session_state.person_clusters) > 0:
-        display_face_selector()
-        st.markdown("---")
+        # When person is selected, show filtered photos first with option to change selection
+        if st.session_state.selected_person is not None:
+            photos = get_photos_for_person(st.session_state.selected_person)
 
-        # Display filtered photos
-        if st.session_state.selected_person is None:
+            # Compact selection bar
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown(f"### 📷 Showing {len(photos)} photos with Person {st.session_state.selected_person}")
+            with col2:
+                if st.button("🏠 Show All", use_container_width=True):
+                    st.session_state.selected_person = None
+                    st.rerun()
+
+            st.markdown("---")
+
+            # Show photos immediately
+            display_photo_grid(photos)
+
+            # Face selector at bottom for changing selection
+            st.markdown("---")
+            st.markdown("### Change selection:")
+            display_face_selector()
+
+        else:
+            # No selection - show face selector first
+            display_face_selector()
+            st.markdown("---")
+
             photos = get_all_photos()
             st.markdown(f"### 📷 Showing all {len(photos)} photos")
-        else:
-            photos = get_photos_for_person(st.session_state.selected_person)
-            st.markdown(f"### 📷 Showing {len(photos)} photos with Person {st.session_state.selected_person}")
-
-            # Auto-scroll to photos section using JavaScript
-            components.html("""
-                <script>
-                    window.parent.document.querySelector('section.main').scrollTo({top: 800, behavior: 'smooth'});
-                </script>
-            """, height=0)
-
-        display_photo_grid(photos)
+            display_photo_grid(photos)
     else:
         st.info("Processing photos...")
 
