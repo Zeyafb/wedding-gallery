@@ -9,6 +9,7 @@ import base64
 from io import BytesIO
 import numpy as np
 import requests
+import streamlit.components.v1 as components
 
 from cache_manager import CacheManager
 from storage_manager import StorageManager
@@ -343,23 +344,20 @@ def main():
         display_face_selector()
         st.markdown("---")
 
-        # Photo grid anchor for auto-scroll
-        st.markdown('<div id="photos"></div>', unsafe_allow_html=True)
-
         # Display filtered photos
         if st.session_state.selected_person is None:
             photos = get_all_photos()
-            st.markdown(f"### Showing {len(photos)} photos")
+            st.markdown(f"### 📷 Showing all {len(photos)} photos")
         else:
             photos = get_photos_for_person(st.session_state.selected_person)
-            st.markdown(f"### Showing {len(photos)} photos with Person {st.session_state.selected_person}")
+            st.markdown(f"### 📷 Showing {len(photos)} photos with Person {st.session_state.selected_person}")
 
-            # Auto-scroll to photos section when person is selected
-            st.markdown("""
+            # Auto-scroll to photos section using JavaScript
+            components.html("""
                 <script>
-                    window.location.hash = '#photos';
+                    window.parent.document.querySelector('section.main').scrollTo({top: 800, behavior: 'smooth'});
                 </script>
-            """, unsafe_allow_html=True)
+            """, height=0)
 
         display_photo_grid(photos)
     else:
