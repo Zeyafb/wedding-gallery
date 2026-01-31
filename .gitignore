@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Cache and data files
+face_embeddings_cache.pkl
+*.pkl
+*.cache
+
+# Photos (add your photos folder but don't commit it)
+wedding_photos/
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.bmp
+
+# Streamlit
+.streamlit/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
