@@ -230,8 +230,12 @@ def display_photo_grid(photo_paths: list):
         for idx, photo_path in enumerate(row):
             with cols[idx]:
                 try:
-                    # Load and display image
-                    image = Image.open(photo_path)
+                    # Load and display image (handle URLs and local paths)
+                    if photo_path.startswith(('http://', 'https://')):
+                        response = requests.get(photo_path)
+                        image = Image.open(BytesIO(response.content))
+                    else:
+                        image = Image.open(photo_path)
 
                     # Resize for display
                     image.thumbnail((config.MAX_DISPLAY_WIDTH, config.MAX_DISPLAY_WIDTH), Image.Resampling.LANCZOS)
@@ -257,7 +261,14 @@ def display_lightbox():
             with col2:
                 st.markdown("---")
                 try:
-                    image = Image.open(st.session_state.lightbox_photo)
+                    # Load image (handle URLs and local paths)
+                    photo_path = st.session_state.lightbox_photo
+                    if photo_path.startswith(('http://', 'https://')):
+                        response = requests.get(photo_path)
+                        image = Image.open(BytesIO(response.content))
+                    else:
+                        image = Image.open(photo_path)
+
                     st.image(image, use_container_width=True)
 
                     st.markdown(f"**{os.path.basename(st.session_state.lightbox_photo)}**")
