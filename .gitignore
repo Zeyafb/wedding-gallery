@@ -9,8 +9,8 @@ env/
 ENV/
 
 # Cache and data files
-face_embeddings_cache.pkl
-*.pkl
+# NOTE: face_embeddings_cache.pkl is intentionally committed (pre-processed data)
+# *.pkl  # Commented out - we want to commit the cache!
 *.cache
 
 # Photos (add your photos folder but don't commit it)

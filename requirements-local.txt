@@ -1,0 +1,13 @@
+# Local processing dependencies (for Windows)
+# Install these to run process_faces_locally.py
+
+Pillow>=10.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+requests>=2.31.0
+
+# Face recognition (requires CMake to be installed first)
+# On Windows: Download CMake from https://cmake.org/download/
+# Install it and check "Add CMake to PATH"
+dlib>=19.24.0
+face_recognition>=1.3.0
