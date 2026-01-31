@@ -73,21 +73,27 @@ def get_face_thumbnail_url(image_path, face_location):
     Returns:
         URL string for cropped face thumbnail (or original path for local files)
     """
-    # For Cloudinary URLs, use transformation API for fast cropped thumbnails
+    # For Cloudinary URLs, use transformation API with our exact face coordinates
     if image_path.startswith('https://res.cloudinary.com/'):
-        # Use Cloudinary's automatic face crop
-        # This is much faster than downloading and cropping locally
+        top, right, bottom, left = face_location
+
+        # Calculate crop dimensions with padding
+        padding = 20
+        crop_left = max(0, left - padding)
+        crop_top = max(0, top - padding)
+        crop_width = (right - left) + (2 * padding)
+        crop_height = (bottom - top) + (2 * padding)
+
         base_url = image_path.split('/upload/')[0]
         image_part = image_path.split('/upload/')[1]
 
-        # Add transformation: crop to face, thumbnail size
-        transformation = f"c_thumb,g_face,h_{config.THUMBNAIL_SIZE},w_{config.THUMBNAIL_SIZE}"
+        # Use our exact coordinates for cropping, then resize to thumbnail
+        transformation = f"c_crop,x_{crop_left},y_{crop_top},w_{crop_width},h_{crop_height}/c_scale,h_{config.THUMBNAIL_SIZE},w_{config.THUMBNAIL_SIZE}"
         thumbnail_url = f"{base_url}/upload/{transformation}/{image_part}"
 
         return thumbnail_url
     else:
         # For local files, return the original path
-        # Streamlit will handle it
         return image_path
 
 
