@@ -269,6 +269,32 @@ def main():
 
     st.markdown("---")
 
+    # Add new person section
+    st.markdown("### ➕ Create New Person")
+    col_new1, col_new2 = st.columns([3, 1])
+    with col_new1:
+        new_person_name = st.text_input(
+            "Add a person not in face detection:",
+            placeholder="Enter name...",
+            key="new_person_input"
+        )
+    with col_new2:
+        st.markdown("<br>", unsafe_allow_html=True)  # Spacing
+        if st.button("Add Person", use_container_width=True):
+            if new_person_name and new_person_name.strip():
+                # Find next available ID (use negative numbers to avoid conflicts)
+                existing_ids = [int(pid) for pid in st.session_state.person_names.keys()]
+                new_id = min(existing_ids) - 1 if existing_ids else -1000
+
+                st.session_state.person_names[str(new_id)] = new_person_name.strip()
+                save_names(st.session_state.person_names)
+                st.success(f"✓ Added '{new_person_name.strip()}' - you can now tag photos with this name!")
+                st.rerun()
+            else:
+                st.error("Please enter a name")
+
+    st.markdown("---")
+
     # Save button at top
     if st.button("💾 Save All Names", type="primary", use_container_width=True):
         save_names(st.session_state.person_names)
