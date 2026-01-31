@@ -340,15 +340,9 @@ def main():
     st.title("💒 Wedding Photo Gallery")
     st.markdown("---")
 
-    # Sidebar for settings (optional - can be hidden since we're using pre-processed cache)
-    # Removed folder path input since we're using Cloudinary URLs from cache
-        st.caption(f"Face detection model: {config.FACE_DETECTION_MODEL}")
-        st.caption(f"Matching tolerance: {config.TOLERANCE}")
-
     # Load pre-processed faces from cache
     if st.session_state.face_data is None:
         load_faces_from_cache()
-            return
 
     # Show lightbox if photo is selected
     if st.session_state.lightbox_photo:
