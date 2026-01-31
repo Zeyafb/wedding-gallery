@@ -173,37 +173,37 @@ def display_face_selector():
 
         for col_idx, (person_id, face_indices) in enumerate(row_people):
             with cols[col_idx]:
-            # Get first face of this person as representative
-            first_face_idx = face_indices[0]
-            face_info = st.session_state.face_data['face_to_photo_map'][first_face_idx]
+                # Get first face of this person as representative
+                first_face_idx = face_indices[0]
+                face_info = st.session_state.face_data['face_to_photo_map'][first_face_idx]
 
-            # Extract face thumbnail
-            try:
-                face_thumb = extract_face_thumbnail(
-                    face_info['photo_path'],
-                    face_info['location']
-                )
+                # Extract face thumbnail
+                try:
+                    face_thumb = extract_face_thumbnail(
+                        face_info['photo_path'],
+                        face_info['location']
+                    )
 
-                # Display circular thumbnail with count
-                num_photos = len(get_photos_for_person(person_id))
+                    # Display circular thumbnail with count
+                    num_photos = len(get_photos_for_person(person_id))
 
-                # Create a circular mask
-                face_thumb_np = np.array(face_thumb)
+                    # Create a circular mask
+                    face_thumb_np = np.array(face_thumb)
 
-                # Display image with click button
-                st.image(
-                    face_thumb_np,
-                    use_container_width=True
-                )
+                    # Display image with click button
+                    st.image(
+                        face_thumb_np,
+                        use_container_width=True
+                    )
 
-                # Button to select this person
-                button_type = "primary" if st.session_state.selected_person == person_id else "secondary"
-                if st.button(f"📷 {num_photos}", key=f"person_{person_id}", use_container_width=True, type=button_type, help=f"{num_photos} photos with this person"):
-                    st.session_state.selected_person = person_id
-                    st.rerun()
+                    # Button to select this person
+                    button_type = "primary" if st.session_state.selected_person == person_id else "secondary"
+                    if st.button(f"📷 {num_photos}", key=f"person_{person_id}", use_container_width=True, type=button_type, help=f"{num_photos} photos with this person"):
+                        st.session_state.selected_person = person_id
+                        st.rerun()
 
-            except Exception as e:
-                st.error(f"Error: {str(e)[:50]}")
+                except Exception as e:
+                    st.error(f"Error: {str(e)[:50]}")
 
 
 def image_to_base64(image_path: str) -> str:
