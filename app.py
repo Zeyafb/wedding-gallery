@@ -14,6 +14,7 @@ import streamlit.components.v1 as components
 from cache_manager import CacheManager
 from storage_manager import StorageManager
 import config
+import json
 
 # Page configuration
 st.set_page_config(
@@ -36,6 +37,29 @@ def init_session_state():
         st.session_state.cluster_labels = None
     if 'lightbox_photo' not in st.session_state:
         st.session_state.lightbox_photo = None
+    if 'person_names' not in st.session_state:
+        st.session_state.person_names = {}
+    if 'search_query' not in st.session_state:
+        st.session_state.search_query = ""
+
+
+def load_person_names():
+    """Load person names from JSON file"""
+    try:
+        with open('person_names.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+
+def get_person_name(person_id, person_names):
+    """Get display name for a person"""
+    name = person_names.get(str(person_id), "")
+    # Return None if name is skip/blank/etc
+    if not name or name.lower() in ['skip', 'sk', '???', 'this one is blank']:
+        return None
+    # Return name for valid entries
+    return name
 
 
 def get_person_clusters(cluster_labels):
@@ -110,6 +134,7 @@ def load_faces_from_cache():
             st.session_state.person_clusters = get_person_clusters(
                 st.session_state.cluster_labels
             )
+            st.session_state.person_names = load_person_names()
 
             # Filter out noise cluster (-1) from display
             if -1 in st.session_state.person_clusters:
@@ -119,7 +144,11 @@ def load_faces_from_cache():
                 noise_count = 0
                 unique_people = len(st.session_state.person_clusters)
 
-            st.success(f"✓ Loaded {cache_data['total_faces']} faces from {cache_data['total_photos']} photos ({unique_people} unique people)")
+            # Count named people (excluding skips)
+            named_count = sum(1 for pid in st.session_state.person_clusters.keys()
+                            if pid >= 0 and get_person_name(pid, st.session_state.person_names) is not None)
+
+            st.success(f"✓ Loaded {cache_data['total_faces']} faces from {cache_data['total_photos']} photos ({named_count} people available)")
             return True
         else:
             st.error("⚠️ Face cache not found. Please contact the administrator.")
@@ -150,19 +179,51 @@ def get_all_photos() -> list:
 
 
 def display_face_selector():
-    """Display face thumbnail selector"""
-    st.markdown("### Select a person to filter photos")
+    """Display face thumbnail selector with search"""
+    st.markdown("### Find your photos")
 
-    # "Show All" button at the top
+    # Search box
+    search_query = st.text_input(
+        "🔍 Search by name:",
+        value=st.session_state.search_query,
+        placeholder="Type a name to search...",
+        key="search_input"
+    )
+
+    if search_query != st.session_state.search_query:
+        st.session_state.search_query = search_query
+        st.rerun()
+
+    # "Show All" button
     if st.button("🏠 Show All Photos", use_container_width=True, type="primary" if st.session_state.selected_person is None else "secondary"):
         st.session_state.selected_person = None
+        st.session_state.search_query = ""
         st.rerun()
 
     st.markdown("---")
-    st.markdown("**Click a face to filter photos:**")
 
-    # Get valid people (exclude noise cluster -1) and sort by face count
-    valid_people = [(pid, faces) for pid, faces in st.session_state.person_clusters.items() if pid >= 0]
+    # Get valid people (exclude noise cluster -1 and people marked as skip)
+    valid_people = []
+    for pid, faces in st.session_state.person_clusters.items():
+        if pid >= 0:
+            name = get_person_name(pid, st.session_state.person_names)
+            if name:  # Only include people with valid names
+                valid_people.append((pid, faces, name))
+
+    # Filter by search query
+    if st.session_state.search_query:
+        query_lower = st.session_state.search_query.lower()
+        valid_people = [(pid, faces, name) for pid, faces, name in valid_people
+                       if query_lower in name.lower()]
+
+    # Sort alphabetically by name
+    valid_people.sort(key=lambda x: x[2].lower())
+
+    if not valid_people:
+        st.info("No people found matching your search.")
+        return
+
+    st.markdown(f"**{len(valid_people)} people:**")
 
     # Display faces in a grid (8 columns per row)
     cols_per_row = 8
@@ -171,7 +232,7 @@ def display_face_selector():
         cols = st.columns(cols_per_row)
         row_people = valid_people[row_start:row_start + cols_per_row]
 
-        for col_idx, (person_id, face_indices) in enumerate(row_people):
+        for col_idx, (person_id, face_indices, name) in enumerate(row_people):
             with cols[col_idx]:
                 # Get first face of this person as representative
                 first_face_idx = face_indices[0]
@@ -193,9 +254,10 @@ def display_face_selector():
                         use_container_width=True
                     )
 
-                    # Button to select this person
+                    # Button to select this person with their name
                     button_type = "primary" if st.session_state.selected_person == person_id else "secondary"
-                    if st.button(f"📷 {num_photos}", key=f"person_{person_id}", use_container_width=True, type=button_type, help=f"{num_photos} photos with this person"):
+                    button_label = f"{name}\n📷 {num_photos}"
+                    if st.button(button_label, key=f"person_{person_id}", use_container_width=True, type=button_type, help=f"{num_photos} photos with {name}"):
                         st.session_state.selected_person = person_id
                         st.rerun()
 
@@ -344,14 +406,19 @@ def main():
         # When person is selected, show filtered photos first with option to change selection
         if st.session_state.selected_person is not None:
             photos = get_photos_for_person(st.session_state.selected_person)
+            person_name = get_person_name(st.session_state.selected_person, st.session_state.person_names)
 
             # Compact selection bar
             col1, col2 = st.columns([3, 1])
             with col1:
-                st.markdown(f"### 📷 Showing {len(photos)} photos with Person {st.session_state.selected_person}")
+                if person_name:
+                    st.markdown(f"### 📷 Showing {len(photos)} photos with {person_name}")
+                else:
+                    st.markdown(f"### 📷 Showing {len(photos)} photos with Person {st.session_state.selected_person}")
             with col2:
                 if st.button("🏠 Show All", use_container_width=True):
                     st.session_state.selected_person = None
+                    st.session_state.search_query = ""
                     st.rerun()
 
             st.markdown("---")
